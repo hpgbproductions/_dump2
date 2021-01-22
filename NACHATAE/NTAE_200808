@@ -1,0 +1,1002 @@
+/*
+Nacchan's Native Text Art Editor
+
+Implemented Command Set
+COMMAND  DESCRIPTION
+[H]      [case-insensitive] Display interactive help
+[WASD]   [case-insensitive] Move the program's cursor
+[0-9]    Single brush (change character at cursor to the defined palette character)
+[-|=]    Single insert (change character at cursor to a specified character)
+[*]      [case-insensitive] Edit palette
+[R]      [case-insensitive] Rectangular fill
+[E]      [case-insensitive] Elliptical fill
+[Z]      9case-insensitive] Undo previous action
+/save    Write canvas data to file
+/load    Load file data to canvas
+/psave   Save palette to file
+/pload   Load palette from file
+/size    Change canvas size
+/move    Move contents of entire canvas
+/color   Change special cell colors
+
+Note: Development should use AllyLocal until completion
+Note: swprintf does not take max size in tcc
+*/
+
+#include <fcntl.h>          // _setmode()
+#include <math.h>           // floor(), ceil()
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>         // system(), abs()
+#include <wchar.h>
+#include <wctype.h>         // towlower()
+#include <windows.h>        // Terminal text color
+
+// BEGIN initialize variables
+int sizeX = 16;                                                              // Size variables for loop and other operations
+int sizeY = 16;
+wchar_t canvas[256][256];                                                    // Empty canvas of XY size 256x256 (parts are unseen by default) canvas[x][y] --> (x,y)
+wchar_t palette[10] = {32, 9472, 9608, 9617, 9618, 9619, 32, 32, 32, 32};    // Changeable default palette (32 is space char) (palette[0] is treated as background char by some functions)
+int cursorX = 0;                                                             // Position of the cursor
+int cursorY = 0;
+wchar_t input[128];
+wchar_t debug[256] = L"Enter a command ('h' for help)";
+bool mainControl  = true;                                                    // Loop master controller
+// END initialize variables
+
+// Undo action variables
+int backup_sizeX = 16;
+int backup_sizeY = 16;
+wchar_t backup_canvas[256][256];
+
+// Variables for console colors
+HANDLE CONSOLE_HANDLE;
+CONSOLE_SCREEN_BUFFER_INFO CSBI_INFO;
+WORD CSBI_BACKUP;
+WORD COLORS_CURSOR = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY | BACKGROUND_BLUE | BACKGROUND_INTENSITY;
+WORD COLORS_CLINES = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE | BACKGROUND_BLUE;
+
+// Counter variables for 'for' loops
+int i = 0;
+int x = 0;
+int y = 0;
+
+// Function prototypes
+void    NTAE_INIT_CANVAS();                    // Initialize canvas (fill completely with background character)
+void    NTAE_SAVE_STATE();                     // Save canvas state
+wchar_t NTAE_WSTR_LOWER(wchar_t[])[];          // Wide string to lowercase
+int     NTAE_COMCMP(wchar_t[], wchar_t[]);     // Compare wide strings, case-insensitive
+bool    NTAE_IN_ELLIPSE(double, double, double, double, double, double);
+
+void main()
+{
+    // Set up the terminal to use UTF-16
+    // All prints must be in wide characters
+    _setmode(_fileno(stdout), _O_U16TEXT);
+    
+    // Initialize canvas at beginning
+    NTAE_INIT_CANVAS();
+    
+    // Initialize backup canvas
+    NTAE_SAVE_STATE();
+    
+    // Get console handle
+    CONSOLE_HANDLE = GetStdHandle(STD_OUTPUT_HANDLE);
+    
+    // Primary display control loop
+    while (mainControl)
+    {
+        // Clear input buffer
+        fflush(stdin);
+        
+        // Get console color attributes
+        GetConsoleScreenBufferInfo(CONSOLE_HANDLE, &CSBI_INFO);
+        CSBI_BACKUP = CSBI_INFO.wAttributes;
+        
+        // BEGIN header display
+        wprintf(L"Nacchan's Native Text Art Editor (%dx%d)\n", sizeX, sizeY);
+        wprintf(L"----------------------------------------------------------------\n");
+        wprintf(L"I.D.  1  2  3  4  5  6  7  8  9  0                        [h]elp\n");
+        wprintf(L"Char  %lc  %lc  %lc  %lc  %lc  %lc  %lc  %lc  %lc  %lc\n\n", palette[1], palette[2], palette[3], palette[4], palette[5], palette[6], palette[7], palette[8], palette[9], palette[0]);
+        // END header display
+        
+        // Upper cursor display
+        wprintf(L"+ ");
+        for (i = 0; i < sizeX; i++)
+        {
+            if (i == cursorX)
+            {
+                wprintf(L"v");
+            }
+            else
+            {
+                wprintf(L" ");
+            }
+        }
+        wprintf(L" + (%d,%d)\n", cursorX, cursorY);
+        
+        // Canvas display
+        for (y = 0; y < sizeY; y++)
+        {
+            bool cursorOnThisRow = false;
+            
+            // Left cursor display
+            if (y == cursorY)
+            {
+                wprintf(L"> ");
+                cursorOnThisRow = true;
+            }
+            else
+            {
+                wprintf(L"  ");
+            }
+            
+            // Print canvas row
+            for (x = 0; x < sizeX; x++)
+            {
+                // Set color to white-blue if at cursor, else reset
+                // Add red to bg of "selected" cells
+                if (x == cursorX && y == cursorY)
+                {
+                    SetConsoleTextAttribute(CONSOLE_HANDLE, COLORS_CURSOR);
+                }
+                else if (x == cursorX || y == cursorY)
+                {
+                    SetConsoleTextAttribute(CONSOLE_HANDLE, COLORS_CLINES);
+                }
+                else
+                {
+                    SetConsoleTextAttribute(CONSOLE_HANDLE, CSBI_BACKUP);
+                }
+                
+                // Causes zero-width space to not be printed (for use with double-width characters)
+                // By default, they are printed as spaces on the terminal, but do not appear on browsers.
+                if (canvas[x][y] != 8203 || canvas[x][y] != 8288)
+                {
+                    wprintf(L"%lc", canvas[x][y]);
+                }
+                
+                SetConsoleTextAttribute(CONSOLE_HANDLE, CSBI_BACKUP);
+                
+                // Line wrap when row is completed
+                if (x + 1 == sizeX)
+                {
+                    if (cursorOnThisRow)
+                    {
+                        // Right cursor display
+                        wprintf(L" <\n");
+                    }
+                    else
+                    {
+                        wprintf(L"\n");
+                    }
+                }
+            }
+        }
+        
+        // Lower cursor display
+        wprintf(L"+ ");
+        for (i = 0; i < sizeX; i++)
+        {
+            if (i == cursorX)
+            {
+                wprintf(L"^");
+            }
+            else
+            {
+                wprintf(L" ");
+            }
+        }
+        wprintf(L" +\n\n----------------------------------------------------------------\n");
+        
+        // Debug line (output)
+        wprintf(L"%ls\n", debug);
+        wprintf(L"user> ");
+        
+        // Take the user input (overflow prevented by only accepting a fixed number of characters)
+        wscanf(L" %127ls", &input);
+        
+        // BEGIN command parser
+        
+        // Help script (indev - temporary)
+        if (input[0] == L'h' || input[0] == L'H')
+        {
+            // Help menu loop controller
+            bool exit = false;
+            
+            while (!exit)
+            {
+                int id;
+                system("cls");
+                wprintf(L"Nacchan's Native Text Art Editor - Help\n");
+                wprintf(L"----------------------------------------------------------------\n\n");
+                wprintf(L"ID   COMMAND   DESCRIPTION\n");
+                wprintf(L"01   [WASD]    Move cursor\n");
+                wprintf(L"02   [0~9]     Single brush\n");
+                wprintf(L"03   [-|=]     Single insert\n");
+                wprintf(L"04   [*]       Palette editor\n");
+                wprintf(L"05   [R]       Rectangular fill\n");
+                wprintf(L"06   [E]       Elliptical fill\n");
+                wprintf(L"07   [Z]       Undo previous action\n");
+                wprintf(L"08   /save     Save canvas contents to file\n");
+                wprintf(L"09   /load     Load canvas contents from file\n");
+                wprintf(L"10   /psave    Save palette to file\n");
+                wprintf(L"11   /pload    Load palette from file\n");
+                wprintf(L"12   /size     Resize canvas\n");
+                wprintf(L"13   /move     Move canvas contents\n");
+                wprintf(L"14   /color    Change cursor cell colors\n");
+                wprintf(L"15   /quit     Exits the program\n\n");
+                wprintf(L"----------------------------------------------------------------\n");
+                wprintf(L"Enter command ID to view page, or any other number to exit help\nuser> ");
+                wscanf(L"%d", &id);
+                
+                // Header of help page
+                system("cls");
+                wprintf(L"Nacchan's Native Text Art Editor - Help\n");
+                wprintf(L"----------------------------------------------------------------\n\n");
+                
+                // Choose help page
+                switch(id)
+                {
+                  case 1:
+                    wprintf(L"#01: [WASD] Move cursor\n\n");
+                    wprintf(L"Moves the cursor by the offset defined by standard movement inputs.\n");
+                    wprintf(L"The cursor is returned to the canvas if it leaves the bounds.\n\n");
+                    wprintf(L"Arguments: None\n\n");
+                    break;
+                  case 2:
+                    wprintf(L"#02: [0-9] Single brush\n\n");
+                    wprintf(L"Inserts the palette character defined by the input number,\n");
+                    wprintf(L"at the cursor's current location.\n\n");
+                    wprintf(L"Arguments: None\n\n");
+                    break;
+                  case 3:
+                    wprintf(L"#03: [-|=] Single insert\n\n");
+                    wprintf(L"Inserts the character defined by newChar\n");
+                    wprintf(L"at the cursor's current location.\n\n");
+                    wprintf(L"Arguments: 1\n");
+                    wprintf(L"wchar_t|int newChar\n");
+                    wprintf(L"    The UTF-16 character to insert.\n");
+                    wprintf(L"    Type is determined by the symbol used to run this command.\n");
+                    wprintf(L"    If '-' is used: Accepts a character.\n");
+                    wprintf(L"    If '=' is used: Accepts an integer.\n\n");
+                    break;
+                  case 4:
+                    wprintf(L"#04: [*] Palette editor\n\n");
+                    wprintf(L"Change a character in the palette.\n\n");
+                    wprintf(L"Arguments: 2\n");
+                    wprintf(L"int paletteIndex\n");
+                    wprintf(L"    Number from 0-9 defining the index of the character to modify.\n");
+                    wprintf(L"int newChar\n");
+                    wprintf(L"    The new UTF-16 character.\n");
+                    wprintf(L"    Alternatively, enter 0 to pick character at the cursor.\n\n");
+                    break;
+                  case 5:
+                    wprintf(L"#05: [R] Rectangular fill\n\n");
+                    wprintf(L"Set a rectangle of cells to a selected palette character.\n");
+                    wprintf(L"The rectangle starts from the location of the cursor.\n");
+                    wprintf(L"The starting corner of the rectangle is based on the signs of\n");
+                    wprintf(L"the lengths.\n\n");
+                    wprintf(L"Arguments: 3\n");
+                    wprintf(L"int paletteIndex\n");
+                    wprintf(L"    Number from 0-9 defining the palette character to use.\n");
+                    wprintf(L"int fillX, fillY\n");
+                    wprintf(L"    Width and height of the rectangle.\n\n");
+                    break;
+                  case 6:
+                    wprintf(L"#06: [E] Elliptical fill\n\n");
+                    wprintf(L"Set an ellipse of cells to a selected palette character.\n");
+                    wprintf(L"The location of the cursor is the center of the ellipse.\n");
+                    wprintf(L"In the case of an even diameter, the ellipse is offset\n");
+                    wprintf(L"right or down by half a cell.\n\n");
+                    wprintf(L"Arguments: 3\n");
+                    wprintf(L"int paletteIndex\n");
+                    wprintf(L"    Number from 0-9 defining the palette character to use.\n");
+                    wprintf(L"int diameterX, diameterY\n");
+                    wprintf(L"    Diameters along the X and Y axis.\n\n");
+                    break;
+                  case 7:
+                    wprintf(L"#07: [Z] Undo previous action\n\n");
+                    wprintf(L"Revert the canvas to the last save state.\n");
+                    wprintf(L"Only one undo is available.\n\n");
+                    wprintf(L"Arguments: None\n\n");
+                  case 8:
+                    wprintf(L"#08: /save\n\n");
+                    wprintf(L"Save canvas contents to a UTF-16-encoded external file.\n\n");
+                    wprintf(L"Arguments: 2\n");
+                    wprintf(L"wchar_t fileOpenMode\n");
+                    wprintf(L"    If 'w': Overwrite the specified file.\n");
+                    wprintf(L"    If 'a': Append data. Previously written data is not lost.\n");
+                    wprintf(L"wchar_t filePath[128]\n");
+                    wprintf(L"    Location of the file to write to.\n");
+                    wprintf(L"    A new file is created if the specified file does not exist.\n\n");
+                    break;
+                  case 9:
+                    wprintf(L"#09: /load\n\n");
+                    wprintf(L"Load canvas from a UTF-16-encoded external file.\n");
+                    wprintf(L"Note that data is read from the top of the file.\n\n");
+                    wprintf(L"wchar_t filePath[128]\n");
+                    wprintf(L"    Location of the file to read from.\n");
+                    wprintf(L"int newsizeX, newsizeY\n");
+                    wprintf(L"    Numbers from 1 to 256 defining the size of the new canvas.\n");
+                    wprintf(L"    Controls how many characters are read per line, and\n");
+                    wprintf(L"    how many lines are read.\n");
+                    wprintf(L"    If <= 0 or > 256: Corresponding size is automatic.\n\n");
+                    break;
+                  case 10:
+                    wprintf(L"#10: /psave\n\n");
+                    wprintf(L"Save palette to a UTF-16-encoded external file.\n\n");
+                    wprintf(L"Arguments: 1\n");
+                    wprintf(L"wchar_t filePath[128]\n");
+                    wprintf(L"    Location of the file to write to.\n");
+                    wprintf(L"    A new file is created if the specified file does not exist.\n\n");
+                    break;
+                  case 11:
+                    wprintf(L"#11: /pload\n\n");
+                    wprintf(L"Load palette from a UTF-16-encoded external file.\n");
+                    wprintf(L"The first 10 printable characters are loaded.\n\n");
+                    wprintf(L"Arguments: 1\n");
+                    wprintf(L"wchar_t filePath[128]\n");
+                    wprintf(L"    Location of the file to read from.\n\n");
+                    break;
+                  default:
+                    swprintf(debug, L"Exited help menu");
+                    exit = true;
+                    break;
+                }
+                
+                // Footer of help page if not exited
+                if (!exit)
+                {
+                    wprintf(L"----------------------------------------------------------------\n");
+                    wprintf(L"Enter any value to return to help menu\nuser> ");
+                    wscanf(L"%ls", &input);
+                }
+            }
+        }
+        // Cursor movement script
+        else if (input[0] == L'w' || input[0] == L'a' || input[0] == L's' || input[0] == L'd' || input[0] == L'W' || input[0] == L'A' || input[0] == L'S' || input[0] == L'D')
+        {
+            bool illegalCharError = false;
+            
+            for (i = 0; i < 128; i++)
+            {
+                // Detected end of string
+                if (input[i] == L'\0')
+                {
+                    // If cursor is off the canvas, move cursor back onto the canvas. X branch
+                    if (cursorX < 0)
+                    {
+                        cursorX = 0;
+                    }
+                    else if (cursorX >= sizeX)
+                    {
+                        cursorX = sizeX - 1;
+                    }
+                    // Y branch
+                    if (cursorY < 0)
+                    {
+                        cursorY = 0;
+                    }
+                    else if (cursorY >= sizeY)
+                    {
+                        cursorY = sizeY - 1;
+                    }
+                    
+                    // Change the debug message for the next loop
+                    if (illegalCharError)
+                    {
+                        swprintf(debug, L"[Cursor] Warning: Command contains illegal characters");
+                    }
+                    else
+                    {
+                        swprintf(debug, L"Moved the cursor to (%d,%d)", cursorX, cursorY);
+                    }
+                    
+                    // Exits the loop
+                    i = 128;
+                }
+                // Standard movement
+                else if (input[i] == L'w' || input[i] == L'W') cursorY--;
+                else if (input[i] == L's' || input[i] == L'S') cursorY++;
+                else if (input[i] == L'a' || input[i] == L'A') cursorX--;
+                else if (input[i] == L'd' || input[i] == L'D') cursorX++;
+                else illegalCharError = true;
+            }
+        }
+        // Single brush script
+        else if (input[0] >= L'0' && input[0] <= L'9')
+        {
+            NTAE_SAVE_STATE();
+            // Copy memory from palette to canvas
+            // Effect: sets canvas[cursorX][cursorY] to palette[input[0]]
+            wmemcpy(canvas[cursorX] + cursorY, palette + input[0] - L'0', 1);
+            swprintf(debug, L"Changed character at (%d,%d) to palette[%lc]", cursorX, cursorY, input[0]);
+        }
+        // Character insert script (symbol/numeric)
+        else if (input[0] == L'-' || input[0] == L'=')
+        {
+            wchar_t newChar;
+            
+            wprintf(L"Enter arguments: newChar\nuser> ");
+            
+            if      (input[0] == L'-') wscanf(L" %lc", &newChar);
+            else if (input[0] == L'=') wscanf(L"%i", &newChar);
+            
+            if (newChar >= 32)
+            {
+                NTAE_SAVE_STATE();
+                wmemset(canvas[cursorX] + cursorY, newChar, 1);
+                swprintf(debug, L"Changed character at (%d,%d) to '%lc'", cursorX, cursorY, newChar);
+            }
+            else
+            {
+                swprintf(debug, L"[Insert] Error: Invalid character. Operation cancelled.");
+            }
+        }
+        // Set palette char script
+        else if (input[0] == L'*')
+        {
+            int paletteIndex;
+            int newChar;
+            
+            // Notes: %i
+            // Can take a decimal value (numbers only) or hexadecimal value (numbers preceded by "0x")
+            wprintf(L"Enter arguments: paletteIndex newChar\nuser> ");
+            
+            if (input[1] == L'*') wscanf(L"%d %lc", &paletteIndex, &newChar);
+            else                  wscanf(L"%d %i", &paletteIndex, &newChar);
+            
+            if (paletteIndex < 0 || paletteIndex > 9)
+            {
+                wcscpy(debug, L"[Palette] Error: Invalid palette index. Operation cancelled.");
+            }
+            else if (newChar == 0)
+            {
+                // Pick character from canvas
+                palette[paletteIndex] = canvas[cursorX][cursorY];
+                swprintf(debug, L"Changed palette[%d] to picked character '%lc' (U+%04x)", paletteIndex, canvas[cursorX][cursorY], canvas[cursorX][cursorY]);
+            }
+            else if (newChar < 32)
+            {
+                wcscpy(debug, L"[Palette] Error: Invalid character index. Operation cancelled.");
+            }
+            else
+            {
+                palette[paletteIndex] = newChar;
+                swprintf(debug, L"Changed palette[%d] to '%lc' (U+%04x)", paletteIndex, newChar, newChar);
+            }
+            
+        }
+        // Rectangular fill script
+        else if (input[0] == L'R' || input[0] == L'r')
+        {
+            int paletteIndex;
+            int fillX;
+            int fillY;
+            int savedcursorX = -1;
+            int savedcursorY = -1;
+            
+            // Command parser
+            wprintf(L"Enter arguments: paletteIndex fillX fillY\nuser> ");
+            wscanf(L"%d %d %d", &paletteIndex, &fillX, &fillY);
+            
+            if (paletteIndex < 0 || paletteIndex > 9)
+            {
+                swprintf(debug, L"[Fill] Error: Invalid palette index. Operation cancelled.");
+            }
+            else
+            {
+                NTAE_SAVE_STATE();
+                // Saves cursor location and temporarily moves cursor for negative fill
+                if (fillX < 0)
+                {
+                    savedcursorX = cursorX;
+                    cursorX      = cursorX + fillX + 1;
+                    fillX        = -fillX;
+                }
+                if (fillY < 0)
+                {
+                    savedcursorY = cursorY;
+                    cursorY      = cursorY + fillY + 1;
+                    fillY        = -fillY;
+                }
+                
+                // Reduce fillY if the fill area will go out of bounds
+                if (cursorY + fillY >= sizeY)
+                {
+                    fillY = sizeY - cursorY;
+                }
+                
+                // Fill (x is capped at the canvas bounds)
+                for (x = 0; x < fillX && x + cursorX < sizeX; x++)
+                {
+                    wmemset(canvas[cursorX + x] + cursorY, palette[paletteIndex], fillY);
+                }
+                
+                // Return cursor to saved position if required
+                if (savedcursorX != -1) cursorX = savedcursorX;
+                if (savedcursorY != -1) cursorY = savedcursorY;
+                
+                swprintf(debug, L"Filled %d cells", fillX*fillY);
+            }
+        }
+        // Elliptical fill script
+        else if (input[0] == L'E' || input[0] == L'e')
+        {
+            // User inputs
+            int paletteIndex;
+            int diameterX;
+            int diameterY;
+            
+            // Values for point checker
+            double h, k, rx, ry;
+            
+            // Ellipse rectangular bounds (points to check)
+            int startx, starty, endx, endy;
+            
+            // Number of cells filled
+            int fillcount = 0;
+            
+            // Command parser
+            wprintf(L"Enter arguments: paletteIndex diameterX diameterY\nuser> ");
+            wscanf(L"%d %d %d", &paletteIndex, &diameterX, &diameterY);
+            
+            if (paletteIndex < 0 || paletteIndex > 9)
+            {
+                swprintf(debug, L"[Fill] Error: Invalid palette index. Operation cancelled.");
+            }
+            else
+            {
+                NTAE_SAVE_STATE();
+                
+                diameterX = abs(diameterX);
+                diameterY = abs(diameterY);
+                
+                rx = diameterX / 2;
+                ry = diameterY / 2;
+                
+                // Offset center on corresponding axis for even diameters
+                if (diameterX % 2 == 0) h = cursorX + 0.5;
+                else                    h = cursorX;
+                if (diameterY % 2 == 0) k = cursorY + 0.5;
+                else                    k = cursorY;
+                
+                startx = floor(h - rx);
+                starty = floor(k - ry);
+                endx   = ceil(h + rx);
+                endy   = ceil(k + ry);
+                
+                // Change point if it is both in the ellipse and in the canvas
+                for (x = startx; x <= endx; x++)
+                {
+                    for (y = starty; y <= endy; y++)
+                    {
+                        if (NTAE_IN_ELLIPSE(x, y, h, k, rx, ry) && x >= 0 && x <= 255 && y >= 0 && y <= 255)
+                        {
+                            wmemset(canvas[x] + y, palette[paletteIndex], 1);
+                            fillcount++;
+                        }
+                    }
+                }
+                
+                swprintf(debug, L"Filled %d cells", fillcount);
+            }
+        }
+        // Undo action script
+        else if (input[0] == L'Z' || input[0] == L'z')
+        {
+            // Load backup values
+            sizeX = backup_sizeX;
+            sizeY = backup_sizeY;
+            for (x = 0; x < 256; x++)
+            {
+                wmemcpy(canvas[x], backup_canvas[x], 256);
+            }
+            swprintf(debug, L"Undid previous action");
+        }
+        // Save function script
+        // Use NTAE_COMCMP() to check if strings are equal, case-insensitive
+        else if (NTAE_COMCMP(input, L"/save") == 0)
+        {
+            wchar_t filepath[128];
+            wchar_t fileopenmode[4];
+            FILE * f;
+            
+            wprintf(L"Enter open mode (w)rite or (a)ppend\nuser> ");
+            wscanf(L" %1ls", fileopenmode);
+            wprintf(L"Enter file path\nuser> ");
+            wscanf(L" %127ls", filepath);
+            
+            if (fileopenmode[0] != L'w' && fileopenmode[0] != L'a')
+            {
+                swprintf(debug, L"[Advanced/Save] Error: Invalid file open mode. Operation cancelled.");
+            }
+            else if ((f = _wfopen(filepath, fileopenmode)))    // Open file to write to, also checks if file can be written to
+            {
+                _setmode(_fileno(f), _O_U16TEXT);
+                
+            if (fileopenmode[0] == L'a') {fwprintf(f, L"\x0A\x0A");}
+                
+                for (y = 0; y < sizeY; y++)
+                {
+                    for (x = 0; x < sizeX; x++)
+                    {
+                        fwprintf(f, L"%lc", canvas[x][y]);
+                        
+                        if ((x + 1 == sizeX) && (y != sizeY - 1))
+                        {
+                            fwprintf(f, L"\x0A", canvas[x][y]);
+                        }
+                    }
+                }
+                
+                swprintf(debug, L"Saved canvas contents to file %s", filepath);
+                fclose(f);
+            }
+            else
+            {
+                swprintf(debug, L"[Advanced/Save] Error: File does not exist or could not be opened. Operation cancelled.");
+            }
+        }
+        else if (NTAE_COMCMP(input, L"/load") == 0)
+        {
+            wchar_t filepath[128];
+            wprintf(L"Enter file path\nuser> ");
+            wscanf(L" %127ls", filepath);
+            
+            FILE * f;
+            
+            if ((f = _wfopen(filepath, L"r, ccs=UTF-16LE")))    // Open file, also check if file can be loaded
+            {
+                int newsizeX;                // User-defined size value
+                int newsizeY;
+                bool autoX   = false;        // Auto size flags
+                bool autoY   = false;
+                int currentX = 0;            // Current coordinate for loading data to canvas
+                int currentY = 0;
+                wchar_t currentchar;         // Next char ready to enter to canvas
+                bool loading = true;         // Currently loading data
+                
+                _setmode(_fileno(f), _O_U16TEXT);
+                wprintf(L"Enter arguments: newsizeX newsizeY (use value <=0 or >255 for auto)\nuser> ");
+                wscanf(L"%d %d", &newsizeX, &newsizeY);
+                wprintf(L"Loading data...");
+                
+                // Set auto flags
+                if (newsizeX <= 0 || newsizeX > 255) {autoX = true; newsizeX = 0;}
+                else sizeX = newsizeX;
+                if (newsizeY <= 0 || newsizeY > 255) {autoY = true; newsizeY = 256;}
+                else sizeY = newsizeY;
+                
+                NTAE_SAVE_STATE();
+                NTAE_INIT_CANVAS();
+                
+                while (loading)
+                {
+                    // Load next character
+                    currentchar = fgetwc(f);
+                    // Check if end of file, OR line break on last possible row --> End loading process
+                    if (currentchar == WEOF || (currentchar == L'\n' && (currentY == newsizeY-1 || (currentY == 255 && autoY))))
+                    {
+                        newsizeY = currentY + 1;
+                        loading  = false;
+                    }
+                    // Check if line break
+                    else if (currentchar == L'\n')
+                    {
+                        // Dynamically change width of canvas if auto
+                        if (autoX && currentX > newsizeX-1)
+                        {
+                            newsizeX = currentX;
+                        }
+                        currentX = 0;
+                        currentY++;
+                    }
+                    // Write character to canvas if valid
+                    else
+                    {
+                        // Check if character inside defined width
+                        if ((currentX < 256 && autoX) || (currentX < newsizeX && !autoX))
+                        {
+                            if (currentchar < 32) currentchar = L' ';
+                            wmemset(canvas[currentX] + currentY, currentchar, 1);
+                        }
+                        currentX++;
+                    }
+                }
+                
+                // Only reset size if auto
+                if (autoX) sizeX = newsizeX;
+                if (autoY) sizeY = newsizeY;
+                swprintf(debug, L"Successfully loaded data from file");
+            }
+            else
+            {
+                swprintf(debug, L"[Advanced/Load] Error: File does not exist or could not be read. Operation cancelled.");
+            }
+        }
+        // Save palette script
+        else if (NTAE_COMCMP(input, L"/psave") == 0)
+        {
+            wchar_t filepath[128];
+            FILE * f;
+            
+            wprintf(L"Enter file path\nuser> ");
+            wscanf(L" %127ls", &filepath);
+            
+            // Open file
+            if ((f = _wfopen(filepath, L"w")))
+            {
+                _setmode(_fileno(f), _O_U16TEXT);
+                
+                // Write characters
+                for (i = 0; i < 10; i++)
+                {
+                    fwprintf(f, L"%lc", palette[i]);
+                }
+                
+                swprintf(debug, L"Saved palette to file");
+                fclose(f);
+            }
+            else
+            {
+                swprintf(debug, L"[Advanced/SavePalette] Error: File does not exist or could not be opened. Operation cancelled.");
+            }
+        }
+        // Load palette script
+        else if (NTAE_COMCMP(input, L"/pload") == 0)
+        {
+            wchar_t filepath[128];
+            FILE * f;
+            
+            wprintf(L"Enter file path\nuser> ");
+            wscanf(L" %127ls", &filepath);
+            
+            // Open file
+            if ((f = _wfopen(filepath, L"r, ccs=UTF-16LE")))
+            {
+                _setmode(_fileno(f), _O_U16TEXT);
+                
+                // Reset palette (fill with spaces)
+                wmemset(palette, L' ', 10);
+                
+                // Load first 10 characters, exiting early if EOF
+                for (i = 0; i < 10; i++)
+                {
+                    wchar_t nextchar = fgetwc(f);
+                    if (feof(f))    // Exit early if EOF
+                    {
+                        break;
+                    }
+                    else if (nextchar < 32)    // Prevent user from entering control characters
+                    {
+                        i--;
+                    }
+                    else
+                    {
+                        wmemset(palette + i, nextchar, 1);
+                    }
+                }
+                
+                swprintf(debug, L"Loaded new palette (%d characters)", i);
+            }
+            else
+            {
+                swprintf(debug, L"[Advanced/LoadPalette] Error: File does not exist or could not be read. Operation cancelled.");
+            }
+        }
+        // Resize canvas script
+        else if (NTAE_COMCMP(input, L"/size") == 0)
+        {
+            int newX;
+            int newY;
+            
+            wprintf(L"Enter arguments: newX newY\nuser> ");
+            wscanf(L"%d %d", &newX, &newY);
+            
+            if (newX < 1 || newX > 256)
+            {
+                swprintf(debug, L"[Advanced/Size] Error: Invalid value of newX. Operation cancelled.");
+            }
+            else if (newY < 1 || newY > 256)
+            {
+                swprintf(debug, L"[Advanced/Size] Error: Invalid value of newY. Operation cancelled.");
+            }
+            else
+            {
+                NTAE_SAVE_STATE();
+                sizeX = newX;
+                sizeY = newY;
+                swprintf(debug, L"Resized canvas to (%d,%d)", newX, newY);
+            }
+        }
+        // Shift canvas contents script (destructive)
+        else if (NTAE_COMCMP(input, L"/move") == 0)
+        {
+            int moveX;                           // User input (positive for rightward)
+            int moveY;                           // User input (positive for downward)
+            wchar_t buffer[sizeX][sizeY];        // Intermediate buffer for movement
+            
+            wprintf(L"Enter arguments: moveX moveY\nuser> ");
+            wscanf(L"%d %d", &moveX, &moveY);
+            
+            // Copy canvas contents to buffer
+            for (x = 0; x < sizeX; x++)
+            {
+                wmemcpy(buffer[x], canvas[x], sizeY);
+            }
+            
+            // Save previous canvas state
+            NTAE_SAVE_STATE();
+            // Reset canvas
+            NTAE_INIT_CANVAS();
+            
+            // Copy buffer contents to canvas
+            // If move variable < 0, cut early parts and pad the rest
+            // If move variable > 0, pad first and copy less
+            for (x = 0; x < sizeX; x++)
+            {
+                // Checks if combined X value is valid
+                if (x - moveX >= 0 && x - moveX < sizeX)
+                {
+                    // Pad front script
+                    if (moveY > 0)
+                    {
+                        wmemset(canvas[x], palette[0], moveY);
+                    }
+                    
+                    // Copies appropriate contents
+                    if (moveY >= 0)
+                    {
+                        wmemcpy(canvas[x] + moveY, buffer[x - moveX], sizeY - moveY);
+                    }
+                    else
+                    {
+                        wmemcpy(canvas[x], buffer[x - moveX], sizeY + moveY);
+                    }
+                }
+            }
+            
+            swprintf(debug, L"Shifted canvas contents by (%d,%d)", moveX, moveY);
+        }
+        // Set colors script
+        else if (NTAE_COMCMP(input, L"/color") == 0)
+        {
+            int id;      // 0 = CURSOR, 1 = CLINES
+            int c[8];    // Individual color bits (see below for corresponding values)
+            WORD colors            = 0;    // Color data to write
+            bool InvalidInputError = false;
+            
+            wprintf(L"Select color to modify (0 = Cursor | 1 = Lines)\nuser> ");
+            wscanf(L"%d", &id);
+            
+            switch(id)
+            {
+              case 0:
+              case 1:
+                wprintf(L"Enter arguments: bg_int bg_r bg_g bg_b fg_int fg_r fg_g fg_b\nuser> ");
+                wscanf(L"%d %d %d %d %d %d %d %d", &c[0], &c[1], &c[2], &c[3], &c[4], &c[5], &c[6], &c[7]);
+                
+                // Bit shift and write next bit
+                for (i = 0; i <= 7; i++)
+                {
+                    if (c[i] != 0 && c[i] != 1)
+                    {
+                        InvalidInputError = true;
+                        break;
+                    }
+                    else if (i == 0)
+                    {
+                        colors = c[0];
+                    }
+                    else
+                    {
+                        colors = (colors << 1) + c[i];
+                    }
+                }
+                
+                if (InvalidInputError)
+                {
+                    swprintf(debug, L"[Advanced/Colors] Error: Invalid color value (0 or 1 only). Operation cancelled.");
+                }
+                else if (id == 0)
+                {
+                    COLORS_CURSOR = colors;
+                    swprintf(debug, L"Changed cursor cell color");
+                }
+                else if (id == 1)
+                {
+                    COLORS_CLINES = colors;
+                    swprintf(debug, L"Changed line cell color");
+                }
+                break;
+              default:
+                swprintf(debug, L"[Advanced/Colors] Error: Invalid color ID. Operation cancelled.");
+            }
+        }
+        // Quit program script
+        else if (NTAE_COMCMP(input, L"/quit") == 0)
+        {
+            wchar_t confirm;
+            
+            wprintf(L"Are you sure you want to quit? All unsaved work will be lost. [Y/N]\nuser> ");
+            
+            // Force the user to confirm
+            fflush(stdin);
+            wscanf(L" %lc", &confirm);
+            
+            if (confirm == L'Y' || confirm == L'y')
+            {
+                wprintf(L"Exiting...");
+                break;
+            }
+        }
+        // Invalid command
+        else
+        {
+            swprintf(debug, L"Error: Invalid command: %s", input);
+        }
+        // END command parser
+        
+        // Clear input array
+        wmemset(input, 0, 128);
+        // Clear terminal at end of loop
+        system("cls");
+    }
+}
+
+// BEGIN function declarations
+
+// Initialize canvas (fill with spaces or background character)
+void NTAE_INIT_CANVAS()
+{
+    for (x = 0; x < 256; x++)
+    {
+        // Fill column x
+        wmemset(canvas[x], palette[0], 256);
+    }
+}
+
+// Backup canvas size values and contents
+void NTAE_SAVE_STATE()
+{
+    backup_sizeX = sizeX;
+    backup_sizeY = sizeY;
+    for (x = 0; x < 256; x++)
+    {
+        // Copy column x
+        wmemcpy(backup_canvas[x], canvas[x], 256);
+    }
+}
+
+// Convert wide string to lowercase
+wchar_t NTAE_WSTR_LOWER(wchar_t wstr[])[]
+{
+    int i = 0;
+    while (wstr[i] != L'\0')    // Check if not end of string
+    {
+        wmemset(wstr + i, towlower(wstr[i]), 1);
+        i++;
+    }
+    return wstr;
+}
+
+// Compare strings in a case-insensitive manner, for command parser
+int NTAE_COMCMP(wchar_t wcs1[], wchar_t wcs2[])
+{
+    return wcscmp(NTAE_WSTR_LOWER(wcs1), NTAE_WSTR_LOWER(wcs2));
+}
+
+// Check if a point is within a defined ellipse
+bool NTAE_IN_ELLIPSE(double px, double py, double h, double k, double rx, double ry)
+{
+    if ( (px-h)*(px-h)*ry*ry + (py-k)*(py-k)*rx*rx <= rx*rx*ry*ry )
+    {
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
