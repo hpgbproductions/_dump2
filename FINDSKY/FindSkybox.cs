@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class DarkBlue : MonoBehaviour
+public class FindSkybox : MonoBehaviour
 {
     private void Start()
     {
