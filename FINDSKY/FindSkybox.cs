@@ -26,3 +26,12 @@ public class FindSkybox : MonoBehaviour
         }
     }
 }
+
+/*
+ * SkyDome component found: UnityEngine.Transform 
+ * SkyDome component found: TOD_Sky 
+ * SkyDome component found: TOD_Animation 
+ * SkyDome component found: TOD_Time 
+ * SkyDome component found: TOD_Components 
+ * SkyDome component found: TOD_Resources
+ */
