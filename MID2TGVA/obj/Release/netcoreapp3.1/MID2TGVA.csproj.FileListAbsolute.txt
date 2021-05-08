@@ -1,0 +1,12 @@
+C:\Users\nacchan\source\repos\MID2TGVA\bin\Release\netcoreapp3.1\MID2TGVA.exe
+C:\Users\nacchan\source\repos\MID2TGVA\bin\Release\netcoreapp3.1\MID2TGVA.deps.json
+C:\Users\nacchan\source\repos\MID2TGVA\bin\Release\netcoreapp3.1\MID2TGVA.runtimeconfig.json
+C:\Users\nacchan\source\repos\MID2TGVA\bin\Release\netcoreapp3.1\MID2TGVA.runtimeconfig.dev.json
+C:\Users\nacchan\source\repos\MID2TGVA\bin\Release\netcoreapp3.1\MID2TGVA.dll
+C:\Users\nacchan\source\repos\MID2TGVA\bin\Release\netcoreapp3.1\MID2TGVA.pdb
+C:\Users\nacchan\source\repos\MID2TGVA\obj\Release\netcoreapp3.1\MID2TGVA.csproj.CoreCompileInputs.cache
+C:\Users\nacchan\source\repos\MID2TGVA\obj\Release\netcoreapp3.1\MID2TGVA.AssemblyInfoInputs.cache
+C:\Users\nacchan\source\repos\MID2TGVA\obj\Release\netcoreapp3.1\MID2TGVA.AssemblyInfo.cs
+C:\Users\nacchan\source\repos\MID2TGVA\obj\Release\netcoreapp3.1\MID2TGVA.dll
+C:\Users\nacchan\source\repos\MID2TGVA\obj\Release\netcoreapp3.1\MID2TGVA.pdb
+C:\Users\nacchan\source\repos\MID2TGVA\obj\Release\netcoreapp3.1\MID2TGVA.genruntimeconfig.cache
