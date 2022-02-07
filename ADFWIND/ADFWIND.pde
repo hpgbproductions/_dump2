@@ -10,7 +10,7 @@ int windSpeed = 20;
 int aircraftSpeed = 100;
 
 // Angle in degrees flown into the wind
-float adjustmentDeg = 5;
+float adjustmentDeg = 10;
 
 PVector aircraftPos;
 PVector beaconPos;
@@ -24,6 +24,9 @@ ArrayList<PVector> aircraftPath;
 
 int fps = 20;
 float deltaTime;
+
+Boolean isRunning = false;
+int framesTaken = 0;
 
 void setup()
 {
@@ -72,13 +75,15 @@ void draw()
   
   // calculations
   aircraftToBeaconHeading = PVector.sub(aircraftPos, beaconPos).heading();
-  if (PVector.dist(aircraftPos, beaconPos) > 10)
+  if (PVector.dist(aircraftPos, beaconPos) > 10 && isRunning)
   {
     aircraftPos = PVector.add(aircraftPos, PVector.mult(windVelocity, deltaTime));
     aircraftVelocity.set(aircraftBaseVelocity);
     aircraftPos = PVector.add(aircraftPos, PVector.mult(aircraftVelocity.rotate(aircraftToBeaconHeading - radians(90) - radians(adjustmentDeg)), deltaTime));
     
     if (frameCount % 3 == 1) aircraftPath.add(aircraftPos);
+    
+    framesTaken++;
   }
   
   // flight path
@@ -94,6 +99,10 @@ void draw()
   
   // aircraft
   translate(aircraftPos.x, aircraftPos.y);
+  textSize(16);
+  textAlign(LEFT, TOP);
+  text(String.format("%1$dFrames", framesTaken), 25, 25);
+  
   rotate(aircraftToBeaconHeading - radians(90) - radians(adjustmentDeg));
   noFill();
   stroke(255, 255, 0);
@@ -102,4 +111,12 @@ void draw()
   stroke(255, 255, 0);
   strokeWeight(2);
   line(0, 0, 0, -50);
+}
+
+void keyPressed()
+{
+  if (key == 'p')
+  {
+    isRunning = !isRunning;
+  }
 }
