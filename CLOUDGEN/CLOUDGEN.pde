@@ -1,8 +1,8 @@
 /*
-    Test cloud generator (release 6)
+    Test cloud generator (release 7)
     by hpgbproductions
     
-    * About 15m per pixel
+    * About 15-20 m per pixel
     * Use finer generation for lower clouds
     * The cloudType will be controlled by another Perlin Noise pattern in real application
 */
@@ -17,13 +17,13 @@ float cloudTypeStep = 0.02f;
 int seed;
 int noiseLod = 4;
 float noiseFalloff = 0.5f;
-float noiseScale = 0.003f;
+float noiseScale = 0.002f;
 
 // Multi-layer visualization
 int Layers = 64;
 int LayerColorStart = 0;
 int LayerColorInterval = 4;
-float depthNoiseScale = 0.003f;
+float depthNoiseScale = 0.004f;
 int targetFps = 120;
 
 // Cloud generation settings
@@ -37,7 +37,7 @@ float intervalY = 20f;
 float intervalZ = 20f;
 
 // Head clouds
-float upScale = 400f;
+float upScale = 450f;
 float upLowerHalfScale = 5f;
 float upUpperHalfScale = 1.5f;
 float upMinParticleSize = 20f;
@@ -86,25 +86,26 @@ void draw()
   }
   else if (layer == 0)
   {
+    // Initialize the drawing system
     background(128, 192, 255);
     layerGray = LayerColorStart;
-  }
-  
-  // Change some values according to cloudType variable
-  downHeight = map(constrain(cloudType, 0f, 0.5f), 0f, 0.5f, 3f * downScale, downScale);
-  downSinkFactor = map(constrain(cloudType, 0f, 0.7f), 0f, 0.5f, 0.9f, 0.3f);
-  upHeight = map(constrain(cloudType, 0.3f, 0.7f), 0.3f, 0.7f, 0.5f * upScale, upScale);
-  upStartY = startY - upHeight;
-  upSinkFactor = map(cloudType, 0f, 1f, 0.7f, 0.2f);
-  upGenerateThreshold = map(cloudType, 0f, 1f, 1f, 0.3f);
-  
-  // Set a new random origin for the Perlin Noise
-  if (ReloadNoise)
-  {
-    perlinStartX = random(-9999f, 9999f);
-    perlinStartY = random(-9999f, 9999f);
-    noiseDetail(noiseLod, noiseFalloff);
-    ReloadNoise = false;
+    
+    // Change some values according to cloudType variable
+    downHeight = downScale * map(constrain(cloudType, 0f, 0.5f), 0f, 0.5f, 3f, 1f);
+    downSinkFactor = map(constrain(cloudType, 0f, 0.7f), 0f, 0.7f, 0.9f, 0.2f);
+    upHeight = upScale * map(constrain(cloudType, 0.3f, 0.7f), 0.3f, 0.7f, 0.5f, 1f);
+    upStartY = startY - upHeight;
+    upSinkFactor = map(cloudType, 0f, 1f, 0.7f, 0.2f);
+    upGenerateThreshold = map(cloudType, 0f, 1f, 1f, 0.3f);
+    
+    // Set a new random origin for the Perlin Noise
+    if (ReloadNoise)
+    {
+      perlinStartX = random(-9999f, 9999f);
+      perlinStartY = random(-9999f, 9999f);
+      noiseDetail(noiseLod, noiseFalloff);
+      ReloadNoise = false;
+    }
   }
   
   noStroke();
