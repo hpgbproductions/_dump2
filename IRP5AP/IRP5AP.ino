@@ -5,6 +5,15 @@
 #define RE_DT 12
 #define RE_CLK 2
 
+#define PB_RDY 11
+#define PB_HDG 10
+#define PB_NAV 9
+#define PB_APR 8
+#define PB_ALT 7
+
+#define LED_RDY 6
+#define LED_ALT 5
+
 // ----------------------------------------------------------------
 // Classes
 
@@ -204,6 +213,10 @@ void FsInputBuffer::add(char c)
 void FsInputBuffer::reset()
 {
   pos = 0;
+  for (int i = 0; i < 16; i++)
+  {
+    buf[i] = 0;
+  }
 }
 // END input buffer class
 
@@ -234,7 +247,7 @@ bool ApNavLock = false;
 bool UpdateLcd = true;
 
 // The variable that the rotary encoder modifies
-enum class RotaryControlVariables : int { Altitude, VerticalSpeed, Heading, NavCourse };
+enum class RotaryControlVariables { Altitude, VerticalSpeed, Heading, NavCourse };
 RotaryControlVariables RotaryControlVariable = RotaryControlVariables::Altitude;
 
 // ----------------------------------------------------------------
@@ -269,22 +282,31 @@ void loop()
       // Detected a function start char
       InputBuffer.reset();
     }
-    InputBuffer.add(c);
-    UpdateLcd = TryReadInput(InputBuffer.buf);
+    
+    if (c != '\n')
+    {
+      InputBuffer.add(c);
+    }
+
+    bool result = TryReadInput(InputBuffer.buf);
+    if (result)
+    {
+      UpdateLcd = true;
+    }
   }
 
   // The update process is carried out if an input command was performed,
   // meaning that an autopilot state was sent
   if (UpdateLcd)
   {
+    //Serial.print(ApActive);
     UpdateLcd = false;
 
-    // Left 4 chars on row 0
-    // Left 3 chars on row 1
+    // Left 3 columns
     if (!ApActive)
     {
       lcd.setCursor(0, 0);
-      lcd.print("STBY");
+      lcd.print("OFF");
       lcd.setCursor(0, 1);
       lcd.print("   ");
 
@@ -296,7 +318,7 @@ void loop()
     else if (ApHeadingLock)
     {
       lcd.setCursor(0, 0);
-      lcd.print("HDG ");
+      lcd.print("HDG");
       lcd.setCursor(0, 1);
       lcd.print(ApHeading);
 
@@ -308,7 +330,7 @@ void loop()
     else if (ApNavLock)
     {
       lcd.setCursor(0, 0);
-      lcd.print("NAV ");
+      lcd.print("NAV");
       lcd.setCursor(0, 1);
       lcd.print(ApNavCourse);
 
@@ -320,7 +342,7 @@ void loop()
     else if (ApApproachLock)
     {
       lcd.setCursor(0, 0);
-      lcd.print("APR ");
+      lcd.print("APR");
       lcd.setCursor(0, 1);
       if (ApBackcourseLock)
         lcd.print("REV");
@@ -331,6 +353,46 @@ void loop()
       {
         RotaryControlVariable = RotaryControlVariables::Altitude;
       }
+    }
+    else
+    {
+      lcd.setCursor(0, 0);
+      lcd.print("RDY");
+      lcd.setCursor(0, 1);
+      lcd.print("   ");
+
+      if (RotaryControlVariable == RotaryControlVariables::Heading || RotaryControlVariable == RotaryControlVariables::NavCourse)
+      {
+        RotaryControlVariable = RotaryControlVariables::Altitude;
+      }
+    }
+
+    lcd.setCursor(6, 0);
+    if (RotaryControlVariable == RotaryControlVariables::Altitude)
+    {
+      lcd.print(">");
+    }
+    else
+    {
+      lcd.print(" ");
+    }
+    lcd.setCursor(6, 1);
+    if (RotaryControlVariable == RotaryControlVariables::VerticalSpeed)
+    {
+      lcd.print(">");
+    }
+    else
+    {
+      lcd.print(" ");
+    }
+    lcd.setCursor(3, 0);
+    if (RotaryControlVariable == RotaryControlVariables::Heading || RotaryControlVariable == RotaryControlVariables::NavCourse)
+    {
+      lcd.print("<");
+    }
+    else
+    {
+      lcd.print(" ");
     }
 
     lcd.setCursor(7, 0);
@@ -353,6 +415,7 @@ void loop()
     {
       RotaryControlVariable = RotaryControlVariables::Altitude;
     }
+    UpdateLcd = true;
   }
   // Long press: switch to Heading or NavCourse
   if (RotaryButton.isDown && RotaryButton.afterChangedStateMillis > 1000)
@@ -365,6 +428,7 @@ void loop()
     {
       RotaryControlVariable = RotaryControlVariables::NavCourse;
     }
+    UpdateLcd = true;
   }
 
   // Rotary encoder input
@@ -401,7 +465,7 @@ bool TryReadInput(char buf[])
       case 'a':
         if (strlen(buf) == 3)
         {
-          ApActive = buf[2] != '0';
+          ApActive = buf[2] == '1';
           return true;
         }
         break;
@@ -417,7 +481,7 @@ bool TryReadInput(char buf[])
         {
           memcpy(ApVerticalSpeed, buf + 2, 5);
           // Remove leading sign if number is exactly 0000
-          if (memcpy(ApVerticalSpeed + 1, "0000", 4) == 0)
+          if (memcmp(ApVerticalSpeed + 1, "0000", 4) == 0)
           {
             ApVerticalSpeed[0] = ' ';
           }
@@ -441,35 +505,35 @@ bool TryReadInput(char buf[])
       case 'j':
         if (strlen(buf) == 3)
         {
-          ApHeadingLock = buf[2] != '0';
+          ApHeadingLock = buf[2] == '1';
           return true;
         }
         break;
       case 'k':
         if (strlen(buf) == 3)
         {
-          ApAltitudeLock = buf[2] != '0';
+          ApAltitudeLock = buf[2] == '1';
           return true;
         }
         break;
       case 'm':
         if (strlen(buf) == 3)
         {
-          ApApproachLock = buf[2] != '0';
+          ApApproachLock = buf[2] == '1';
           return true;
         }
         break;
       case 'n':
         if (strlen(buf) == 3)
         {
-          ApBackcourseLock = buf[2] != '0';
+          ApBackcourseLock = buf[2] == '1';
           return true;
         }
         break;
       case 'o':
         if (strlen(buf) == 3)
         {
-          ApNavLock = buf[2] != '0';
+          ApNavLock = buf[2] == '1';
           return true;
         }
         break;
