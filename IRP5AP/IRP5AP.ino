@@ -5,11 +5,11 @@
 #define RE_DT 12
 #define RE_CLK 2
 
-#define PB_RDY 11
-#define PB_HDG 10
+#define PB_RDY 7
+#define PB_HDG 8
 #define PB_NAV 9
-#define PB_APR 8
-#define PB_ALT 7
+#define PB_APR 10
+#define PB_ALT 11
 
 #define LED_RDY 6
 #define LED_ALT 5
@@ -28,6 +28,7 @@ class DebouncedButton
     void update();
     int pinNumber;
     int debounceMillis;
+    int reading;
     int state;
     int previousState;
     int inactiveState;
@@ -68,7 +69,7 @@ DebouncedButton::DebouncedButton(int pinNum, int dbMillis, int defaultState = LO
 
 void DebouncedButton::update()
 {
-  int reading = digitalRead(pinNumber);
+  reading = digitalRead(pinNumber);
   afterChangedStateMillis += millis() - lastUpdateMillis;
   lastUpdateMillis = millis();
   
@@ -227,16 +228,23 @@ void FsInputBuffer::reset()
 LiquidCrystal_I2C lcd(39, 16, 2);
 
 // Input switches
-DebouncedButton RotaryButton(RE_SW, 50, HIGH);
 RotaryEncoder Rotary;
+DebouncedButton RotaryButton(RE_SW, 20, HIGH);
+DebouncedButton ButtonMasterSwitch(PB_RDY, 50, LOW);
+DebouncedButton ButtonHeadingHold(PB_HDG, 50, LOW);
+DebouncedButton ButtonNavHold(PB_NAV, 50, LOW);
+DebouncedButton ButtonApproachHold(PB_APR, 50, LOW);
+DebouncedButton ButtonAltitudeHold(PB_ALT, 50, LOW);
 
 // Flight simulator state
+// Assign one more character to char arrays than will be written,
+// to prevent display issues with lcd.print()
 FsInputBuffer InputBuffer;
 bool ApActive = false;
-char ApAltitude[5];
-char ApVerticalSpeed[5];
-char ApHeading[3];
-char ApNavCourse[3];
+char ApAltitude[6];
+char ApVerticalSpeed[6];
+char ApHeading[4];
+char ApNavCourse[4];
 bool ApHeadingLock = false;
 bool ApAltitudeLock = false;
 bool ApApproachLock = false;
@@ -245,6 +253,7 @@ bool ApNavLock = false;
 
 // Other variables
 bool UpdateLcd = true;
+bool backcourse = false;
 
 // The variable that the rotary encoder modifies
 enum class RotaryControlVariables { Altitude, VerticalSpeed, Heading, NavCourse };
@@ -260,6 +269,13 @@ void setup()
   pinMode(RE_SW, INPUT);
   pinMode(RE_DT, INPUT);
   pinMode(RE_CLK, INPUT);
+  pinMode(PB_RDY, INPUT);
+  pinMode(PB_HDG, INPUT);
+  pinMode(PB_NAV, INPUT);
+  pinMode(PB_APR, INPUT);
+  pinMode(PB_ALT, INPUT);
+  pinMode(LED_RDY, OUTPUT);
+  pinMode(LED_ALT, OUTPUT);
 
   Rotary = RotaryEncoder::RotaryEncoder(RE_CLK, RE_DT, 10, digitalRead(RE_CLK));
   
@@ -272,6 +288,11 @@ void loop()
   // Update input components
   RotaryButton.update();
   Rotary.update();
+  ButtonMasterSwitch.update();
+  ButtonHeadingHold.update();
+  ButtonNavHold.update();
+  ButtonApproachHold.update();
+  ButtonAltitudeHold.update();
 
   while (Serial.available() > 0)
   {
@@ -299,10 +320,10 @@ void loop()
   // meaning that an autopilot state was sent
   if (UpdateLcd)
   {
-    //Serial.print(ApActive);
     UpdateLcd = false;
 
-    // Left 3 columns
+    // Check autopilot state
+    // Left 3 columns of LCD
     if (!ApActive)
     {
       lcd.setCursor(0, 0);
@@ -327,7 +348,7 @@ void loop()
         RotaryControlVariable = RotaryControlVariables::Heading;
       }
     }
-    else if (ApNavLock)
+    else if (ApNavLock && !ApHeadingLock)
     {
       lcd.setCursor(0, 0);
       lcd.print("NAV");
@@ -401,7 +422,13 @@ void loop()
     lcd.setCursor(7, 1);
     lcd.print("VS  ");
     lcd.print(ApVerticalSpeed);
+
+    // END if (UpdateLcd)
   }
+
+  // Update LEDs
+  digitalWrite(LED_RDY, ApActive ? HIGH : LOW);
+  digitalWrite(LED_ALT, ApAltitudeLock ? HIGH : LOW);
 
   // Set RotaryControlVariable according to RotaryButton press
   // Short press: switch between Altitude and VerticalSpeed
@@ -449,9 +476,45 @@ void loop()
   }
   else if (RotaryControlVariable == RotaryControlVariables::NavCourse)
   {
-    if (Rotary.change == 1) Serial.println("A55");
-    else if (Rotary.change == -1) Serial.println("A56");
+    if (Rotary.change == 1) Serial.println("A56");
+    else if (Rotary.change == -1) Serial.println("A55");
   }
+
+  // Five buttons on pushed input
+  if (ButtonMasterSwitch.onButtonDown)
+  {
+    Serial.println("B01");
+  }
+  if (ButtonHeadingHold.onButtonDown)
+  {
+    Serial.println("B04");
+  }
+  if (ButtonNavHold.onButtonDown)
+  {
+    Serial.println("B10");
+  }
+  if (ButtonApproachHold.onButtonDown)
+  {
+    if (!ApApproachLock)
+    {
+      Serial.println("B08");
+    }
+    else if (ApApproachLock && !ApBackcourseLock)
+    {
+      Serial.println("B09");
+    }
+    else // if (ApApproachLock && ApBackcourseLock)
+    {
+      Serial.println("B09");
+      Serial.println("B08");
+    }
+  }
+  if (ButtonAltitudeHold.onButtonDown)
+  {
+    Serial.println("B05");
+  }
+
+  // END of update()
 }
 
 // Try to execute a function with the input text
