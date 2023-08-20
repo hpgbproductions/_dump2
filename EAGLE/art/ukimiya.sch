@@ -15,7 +15,7 @@
 <layer number="95" name="Names" color="7" fill="1" visible="yes" active="yes"/>
 <layer number="96" name="Values" color="7" fill="1" visible="yes" active="yes"/>
 <layer number="97" name="Info" color="7" fill="1" visible="yes" active="yes"/>
-<layer number="98" name="Guide" color="6" fill="1" visible="yes" active="yes"/>
+<layer number="98" name="Guide" color="6" fill="1" visible="no" active="yes"/>
 </layers>
 <schematic xreflabel="%F%N/%S.%C%R" xrefpart="/%S.%C%R">
 <libraries>
@@ -71,18 +71,18 @@
 </net>
 <net name="N$3" class="0">
 <segment>
-<wire x1="-21.59" y1="29.21" x2="-3.81" y2="29.21" width="2.54" layer="91"/>
-<wire x1="-3.81" y1="29.21" x2="15.24" y2="48.26" width="2.54" layer="91"/>
+<wire x1="-21.59" y1="30.48" x2="-2.54" y2="30.48" width="2.54" layer="91"/>
+<wire x1="-2.54" y1="30.48" x2="15.24" y2="48.26" width="2.54" layer="91"/>
 </segment>
 </net>
 <net name="N$4" class="0">
 <segment>
-<wire x1="-20.32" y1="38.1" x2="-17.78" y2="35.56" width="2.54" layer="91"/>
+<wire x1="-21.59" y1="38.1" x2="-19.05" y2="35.56" width="2.54" layer="91"/>
 </segment>
 </net>
 <net name="N$5" class="0">
 <segment>
-<wire x1="-13.97" y1="38.1" x2="-11.43" y2="35.56" width="2.54" layer="91"/>
+<wire x1="-14.605" y1="38.1" x2="-12.065" y2="35.56" width="2.54" layer="91"/>
 </segment>
 </net>
 <net name="N$6" class="0">
@@ -92,7 +92,7 @@
 </net>
 <net name="N$2" class="0">
 <segment>
-<wire x1="-30.48" y1="29.21" x2="-41.275" y2="29.21" width="2.54" layer="91"/>
+<wire x1="-30.48" y1="27.94" x2="-41.91" y2="27.94" width="2.54" layer="91"/>
 </segment>
 </net>
 <net name="N$8" class="0">
@@ -107,11 +107,11 @@
 </net>
 <net name="N$10" class="0">
 <segment>
-<wire x1="3.81" y1="-39.37" x2="31.75" y2="-39.37" width="2.54" layer="91"/>
-<wire x1="31.75" y1="-39.37" x2="31.75" y2="-22.86" width="2.54" layer="91"/>
+<wire x1="3.81" y1="-38.1" x2="31.75" y2="-38.1" width="2.54" layer="91"/>
+<wire x1="31.75" y1="-38.1" x2="31.75" y2="-22.86" width="2.54" layer="91"/>
 <wire x1="31.75" y1="-22.86" x2="17.78" y2="-22.86" width="2.54" layer="91"/>
 <wire x1="17.78" y1="-22.86" x2="3.81" y2="-22.86" width="2.54" layer="91"/>
-<wire x1="3.81" y1="-22.86" x2="3.81" y2="-39.37" width="2.54" layer="91"/>
+<wire x1="3.81" y1="-22.86" x2="3.81" y2="-38.1" width="2.54" layer="91"/>
 <wire x1="6.35" y1="-7.62" x2="29.21" y2="-7.62" width="2.54" layer="91"/>
 <wire x1="29.21" y1="-7.62" x2="29.21" y2="-16.51" width="2.54" layer="91"/>
 <wire x1="29.21" y1="-16.51" x2="17.78" y2="-16.51" width="2.54" layer="91"/>
@@ -371,9 +371,9 @@
 </net>
 <net name="N$47" class="0">
 <segment>
-<wire x1="3.81" y1="20.32" x2="3.81" y2="24.13" width="0.6096" layer="91"/>
-<wire x1="3.81" y1="20.32" x2="15.24" y2="20.32" width="0.6096" layer="91"/>
-<wire x1="3.81" y1="24.13" x2="10.16" y2="24.13" width="0.6096" layer="91"/>
+<wire x1="2.54" y1="20.32" x2="2.54" y2="24.13" width="0.6096" layer="91"/>
+<wire x1="2.54" y1="20.32" x2="15.24" y2="20.32" width="0.6096" layer="91"/>
+<wire x1="2.54" y1="24.13" x2="10.16" y2="24.13" width="0.6096" layer="91"/>
 </segment>
 </net>
 <net name="N$48" class="0">
