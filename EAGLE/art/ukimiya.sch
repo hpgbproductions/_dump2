@@ -116,7 +116,7 @@
 </net>
 <net name="N$11" class="0">
 <segment>
-<wire x1="15.24" y1="2.54" x2="19.05" y2="-1.27" width="2.54" layer="91"/>
+<wire x1="17.78" y1="2.54" x2="17.78" y2="-1.27" width="2.54" layer="91"/>
 </segment>
 </net>
 <net name="N$12" class="0">
