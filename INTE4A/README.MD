@@ -4,7 +4,7 @@ This is an educational tool that performs discrete integration over a domain on 
 
 Requires Processing. Tested on Processing 4.3.
 
-![](../image.png)
+![](image.png)
 
 ### Usage Instructions
 
