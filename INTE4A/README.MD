@@ -4,6 +4,8 @@ This is an educational tool that performs discrete integration over a domain on 
 
 Requires Processing. Tested on Processing 4.3.
 
+![](../image.png)
+
 ### Usage Instructions
 
 1. Identify the domain curves and the bounding box, and fill in the appropriate variables. If there is no domain curve, use the matching bounding box variable.
