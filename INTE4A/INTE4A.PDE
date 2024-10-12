@@ -1,5 +1,5 @@
 // INTE4A by hpgbproductions
-// This is an educational tool that performs discrete integration over a domain.
+// This is an educational tool that performs discrete integration over a domain in rectangular coordinates.
 // It can be used to check approximate answers.
 
 // BEGIN integration settings
@@ -127,12 +127,12 @@ void draw()
           if (z < ScaleMidValue)
           {
             float LerpAmount = constrain((z - ScaleMinValue) / (ScaleMidValue - ScaleMinValue), 0f, 1f);
-            DrawHue = lerp(0.6667f, 1.0000f, LerpAmount);
+            DrawHue = lerp(0.1667f, 0.0000f, LerpAmount);
           }
           else
           {
             float LerpAmount = constrain((z - ScaleMidValue) / (ScaleMaxValue - ScaleMidValue), 0f, 1f);
-            DrawHue = lerp(0.0000f, 0.1667f, LerpAmount);
+            DrawHue = lerp(1.0000f, 0.6667f, LerpAmount);
           }
           set(CurrentWindowX, CurrentWindowY, color(DrawHue, 1f, 1f));
         }
