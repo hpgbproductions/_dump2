@@ -21,3 +21,13 @@ Requires Processing. Tested on Processing 4.3.
   - The bounding box is too small and does not cover the entire domain. Change the Bounds values.
 - **The domain is cut off within the graph by a horizontal or vertical line.**
   - A domain function is set to a constant that is within the bounding box. Change the Domain function.
+
+### Version History
+
+241018 >
+
+- Fixed incorrect first test case used by the form result bruteforcer.
+
+241012 >
+
+- Initial release
