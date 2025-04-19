@@ -9,13 +9,14 @@
 
 PImage Image;
 PImage PaletteImage;
-String ImagePath = "img.png";
-String PalettePath = "pal.png";
+String ImagePath = "mySprite.png";
+String PalettePath = "myPal.png";
 ArrayList Palette = new ArrayList(16);
 
 Boolean PixelSize8bpp = false;
 int TransparentIndex = 0x00;
 int AlphaThreshold = 128;
+int PixelsPerLine = 32;
 
 Boolean drawn = false;
 
@@ -153,7 +154,7 @@ void draw()
       }
     }
     
-    if (i % 8 == 7)
+    if (i % PixelsPerLine == (PixelsPerLine - 1))
     {
       OutStringBuilder.append("\n\t");
     }
